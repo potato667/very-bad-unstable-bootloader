@@ -1,23 +1,60 @@
+;SPECIAL THANKS TO:
+; -gloriouscow
+; -iqon
+; FOR ALL OF THEIR HELP AND SUPPORT :D
+
+; SOFTWARE NEEDED:
+; -QEMU
+; -NASM
+; -GCC
+
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
-;         "type Boot.bin Kernel.bin > OS.bin"
-; RUN     "qemu-system-i386  OS.bin"
+;         "type Boot.bin Kernel.bin > CruiseOS.bin"
 
-BITS 16
-[ORG 0x7c00]
+; ASM & C "gcc -c Kernel.c -o Kernel.o"
+;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
+;         "ld Kernel.o Kernel_Entry.o -o elf"
+
+; RUN     "qemu-system-i386 CruiseOS.bin"
+
+; BOOTLOADER FEATURES:
+; [X]DRIVE CHECK
+; [-]HANG ROUTINES
+; [X]32 BIT PROTECTED MODE
+; [-]64 BIT LONG MODE
+; [-]FAT 32 FILESYSTEM SUPPORT
+; [-]INITIALIZING THE RTC (REAL TIME CLOCK)
+; [-]INITIALIZING INT 33h (THE MOUSE CURSOR)
+; [-]IDT (INTERRUPT DESCRIPTOR TABLE)
+; [-]ISR (INTERRUPT SERVICE ROUTINE)
+; [X]MOVING TO THE KERNEL
+
+; REPLACE ALL MOV REGISTER, 0 TO XOR REGISTER, REGISTER, SINCE IT IS FASTER
+
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-16 BIT SEGMENT
+BITS 16 ; TO CALL OR JMP FROM ONE CODE SEGMENT TO ANOTHER, USE 'CODE_SEG:' BEFORE THE FUNCTION NAME
+[ORG 0x7c00] ; WHERE THE CODE IS LOCATED, BOOTLOADERS ARE USUALLY IN 0x7c00
 
 CODE_SEG      EQU GDT_CODE - GDT_START
 DATA_SEG      EQU GDT_DATA - GDT_START
-KERNEL_OFFSET EQU               0x2000
+KERNEL_OFFSET EQU               0x2000 ; WHERE THE KERNEL WILL BE PLACED, FOR EXAMPLE [ORG 0x2000]
 
-MOV [BOOT_DRIVE],     DL
-MOV           BP,  9000h
-MOV           SP,     BP
+MOV [BOOT_DRIVE], DL
+MOV SP, 0x7c00
 
-CALL INIT_KERNEL
-CALL   A20_CHECK
+CALL   INIT_KERNEL
+CALL     A20_CHECK
+CALL BITS32_SWITCH
 
-JMP $
+;JMP $ ; FOR LOOPING (TRYING TO REPLACE LOOPING WITH HANG ROUTINES)
+
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-HANG ROUTINE
+HANG_ROUTINE: ; USE AFTER LEAVING A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS
+     CLI
+     HLT
+     JMP HANG_ROUTINE
+
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-FUNCTION SPECIFIC PRINTS
 OUTPUT:          MOV AH, 0Eh
 .AGAIN:          LODSB
@@ -74,6 +111,7 @@ INIT_32BITS_OUT: MOV AH, 0Eh
                  INT 10h
                  JMP .AGAIN
           .EXIT: JMP CODE_SEG:BEGIN_32BIT
+
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-BOOTLOADING
 INIT_KERNEL:
      MOV  BX, KERNEL_OFFSET ; BX -> DESTINATION
@@ -103,17 +141,16 @@ INIT_DRIVE:
      RET
 
      DISK_ERR:
-     MOV SI, DISK_ERROR
-     CALL DISK_ERR_OUT
-     RET
+          MOV SI, DISK_ERROR
+          CALL DISK_ERR_OUT
+          RET
 
      SECT_ERR:
-     MOV  SI, SECTOR_ERROR
-     CALL SECT_ERR_OUT
-     RET
+          MOV  SI, SECTOR_ERROR
+          CALL SECT_ERR_OUT
+          RET
 
-     DISK_LOOP:
-     JMP $
+     DISK_LOOP: JMP $ ; THIS FUNCTION SHOULD BE REPLACED WITH A HANG ROUTINE
 
 A20_CHECK:
      PUSHF
@@ -140,11 +177,6 @@ A20_CHECK:
      POP  AX
      MOV  BYTE[ES:DI],   AL
      MOV  AX, 0
-     JC   A20_EXIT_CHECK
-     MOV  AX, 1
-     RET
-
-A20_EXIT_CHECK:
      POP  SI
      POP  DI
      POP  ES
@@ -152,6 +184,7 @@ A20_EXIT_CHECK:
      POPF
      MOV  SI, A20_SUCCESS
      CALL A20_EXIT_OUT
+     ;MOV  AX, 1 ; IS THAT EVEN ESSENTIAL?
      RET
 
 BITS32_SWITCH:
@@ -164,7 +197,8 @@ BITS32_SWITCH:
      CALL GDT_SUCCESS_OUT
      RET
 
-BITS 32 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-SECOND STAGE
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-32 BIT SEGMENT
+BITS 32
 
 A20_STATE:
      PUSHAD
@@ -175,6 +209,7 @@ A20_STATE:
      CMPSD
      POPAD
      JNE A20_ON
+     JE  A20_OFF
      RET
 
 A20_OFF:
@@ -201,9 +236,11 @@ INIT_32BITS:
      RET
 
 BEGIN_32BIT:
-     CALL 0:KERNEL_OFFSET ; STARTS THE LINKED KERNEL THAT HAS A HEADER OF [ORG 0x2000] ; OTHER VALUES CAUSE A TGC FATAL ERROR IN QEMU FOR SOME REASON
-     JMP $
+     CALL CODE_SEG:KERNEL_OFFSET ; GIVES CONTROL THE LINKED KERNEL THAT HAS A HEADER OF [ORG 0x2000]
+                                 ; OTHER VALUES CAUSE A TGC FATAL ERROR IN QEMU FOR SOME REASON
+     JMP $ ; LOOP JUST INCASE THE KERNEL DOES A RETURN, SHOULD BE REPLACED WITH A HANG ROUTINE
 
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-VARIABLES
 GDT_TABLE:
      DW GDT_END - GDT_START - 1
      DD GDT_START
@@ -238,4 +275,4 @@ GDT_STATE_ON    DB 'GDT_ON '    , 0
 REBOOTING       DB 'REBOOT '    , 0
 
 TIMES 510-($-$$) DB 0
-DW 0xAA55
+DW 0xAA55 ; BOOT SIGNATURE
