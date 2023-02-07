@@ -11,13 +11,14 @@
 
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
-;         "type Boot.bin Kernel.bin > CruiseOS.bin"
+;         "type Boot.bin Kernel.bin > OS.bin"
 
 ; ASM & C "gcc -c Kernel.c -o Kernel.o"
 ;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
 ;         "ld Kernel.o Kernel_Entry.o -o elf"
 
-; RUN     "qemu-system-i386 CruiseOS.bin"
+; RUN     "qemu-system-i386 OS.bin"
+; RUN DBG "qemu-system-i386 -monitor stdio OS.bin"
 
 ; BOOTLOADER FEATURES:
 ; [X]DRIVE CHECK
