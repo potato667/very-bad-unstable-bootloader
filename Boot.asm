@@ -1,3 +1,8 @@
+; SPECIAL THANKS TO:
+; IQON
+; GOOGLE0101
+; GLORIOUSCOW
+
 ; SOFTWARE NEEDED:
 ; -QEMU
 ; -NASM
@@ -11,7 +16,7 @@
 ;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
 ;         "ld Kernel.o Kernel_Entry.o -o elf"
 
-; RUN     "qemu-system-i386 OS.bin"
+; RUN     "qemu-system-i386 CruiseOS.bin"
 ; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot OS.bin"
 
 ; BOOTLOADER FEATURES:
@@ -26,6 +31,9 @@
 ; [-]INITIALIZING INT 33h (THE MOUSE CURSOR)
 ; [-]IDT (INTERRUPT DESCRIPTOR TABLE)
 ; [-]ISR (INTERRUPT SERVICE ROUTINE)
+; [-]VESA BIOS EXTENTIONS
+; [-]RESOLUTION TO 1920*1080
+; [-]MULTI-THREADING
 ; [-]KERNEL ABI (APPLICATION BINARY INTERFACE)
 ; [X]MOVING TO THE KERNEL
 
@@ -49,11 +57,7 @@ MOV GS, AX
 MOV [BOOT_DRIVE], DL
 MOV SP, 0x7c00
 
-CALL INIT_KERNEL
-
-;JMP $ ; FOR LOOPING (TRYING TO REPLACE LOOPING WITH HANG ROUTINES)
-;MOV SI, BOOT_ERR
-;CALL ERR_OUTPUT
+JMP INIT_KERNEL
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-HANG ROUTINE
 HANG_ROUTINE: ; USE AFTER LEAVING A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS
@@ -63,7 +67,7 @@ HANG_ROUTINE: ; USE AFTER LEAVING A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS
           HLT
           JMP HANG
 
-;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-FUNCTION SPECIFIC PRINTS
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-PRINT
 OUTPUT:          MOV AH, 0Eh
 .AGAIN:          LODSB
                  CMP AL, 0
@@ -75,7 +79,7 @@ OUTPUT:          MOV AH, 0Eh
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-BOOTLOADING
 INIT_KERNEL:
      MOV  BX, KERNEL_OFFSET ; BX -> DESTINATION
-     MOV  DH,             1 ; DH -> NUM SECTORS (WHEN SET TO 1 THE KERNEL LOADS, WHEN SET TO 1 A20 SUCCESS MESSAGE LOADS)
+     MOV  DH,             1 ; DH -> NUM SECTORS
      MOV  DL,  [BOOT_DRIVE] ; DL ->        DISK
      CALL        INIT_DRIVE
      RET
@@ -107,6 +111,8 @@ A20_CHECK:
      OUT 0x92,   AL
 
 BITS32_SWITCH:
+     ;MOV SI, JOKE       ; ISSUE HERE
+     ;CALL HANG_ROUTINE
      CLI
      LGDT [GDT_TABLE]
      MOV  EAX,    CR0
@@ -136,8 +142,7 @@ INIT_32BITS:
      JMP  BEGIN_32BIT
 
 BEGIN_32BIT:
-     CALL KERNEL_OFFSET ; GIVES CONTROL THE LINKED KERNEL THAT HAS A HEADER OF [ORG 0x2000]
-                        ; OTHER VALUES CAUSE A TGC FATAL ERROR IN QEMU FOR SOME REASON
+     CALL KERNEL_OFFSET
      JMP $
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-VARIABLES
@@ -163,11 +168,11 @@ GDT_DATA:
 GDT_END:
 
 BOOT_DRIVE    DB 0
-KERN_ERR      DB 'KERN_ERR '  , 0
 DISK_ERR      DB 'DISK_ERR '  , 0
 SECT_ERR      DB 'SECT_ERR '  , 0
 A20_STATE_OFF DB 'A20_OFF '   , 0
 BOOT_ERR      DB 'BOOT_ERR '  , 0
+;JOKE DB 'FIND HOT SINGLES AT HTTPS:',0
 
 TIMES 510-($-$$) DB 0
 DW 0xAA55 ; BOOT SIGNATURE
