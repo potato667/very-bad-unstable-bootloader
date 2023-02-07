@@ -11,17 +11,19 @@
 
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
-;         "type Boot.bin Kernel.bin > OS.bin"
+;         "type Boot.bin Kernel.bin > CruiseOS.bin"
 
 ; ASM & C "gcc -c Kernel.c -o Kernel.o"
 ;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
 ;         "ld Kernel.o Kernel_Entry.o -o elf"
 
-; RUN     "qemu-system-i386 OS.bin"
+; RUN     "qemu-system-i386 CruiseOS.bin"
 
 ; BOOTLOADER FEATURES:
 ; [X]DRIVE CHECK
 ; [-]HANG ROUTINES
+; [X]A20
+; [X]GDT
 ; [X]32 BIT PROTECTED MODE
 ; [-]64 BIT LONG MODE
 ; [-]FAT 32 FILESYSTEM SUPPORT
@@ -50,6 +52,8 @@ CALL     A20_CHECK
 CALL BITS32_SWITCH
 
 ;JMP $ ; FOR LOOPING (TRYING TO REPLACE LOOPING WITH HANG ROUTINES)
+;MOV SI, BOOT_ERR
+;CALL ERR_OUTPUT
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-HANG ROUTINE
 HANG_ROUTINE: ; USE AFTER LEAVING A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS
@@ -65,6 +69,14 @@ OUTPUT:          MOV AH, 0Eh
                  INT 10h
                  JMP .AGAIN
  .EXIT:          RET
+
+;ERR_OUTPUT:      MOV AH, 0Eh
+;    .AGAIN:      LODSB
+;                 CMP AL, 0
+;                 JE  .EXIT
+;                 INT 10h
+;                 JMP .AGAIN
+;     .EXIT:      CALL HANG_ROUTINE
 
 DISK_ERR_OUT:    MOV AH, 0Eh
       .AGAIN:    LODSB
@@ -143,16 +155,20 @@ INIT_DRIVE:
      RET
 
      DISK_ERR:
+          ;MOV SI, DISK_ERR
+          ;CALL ERR_OUTPUT
           MOV SI, DISK_ERROR
           CALL DISK_ERR_OUT
           RET
 
      SECT_ERR:
+          ;MOV SI, SECTOR_ERR
+          ;CALL ERR_OUTPUT
           MOV  SI, SECTOR_ERROR
           CALL SECT_ERR_OUT
           RET
 
-     DISK_LOOP: JMP $ ; THIS FUNCTION SHOULD BE REPLACED WITH A HANG ROUTINE
+     DISK_LOOP: JMP $ ; THIS FUNCTION SHOULD BE REMOVED
 
 A20_CHECK:
      PUSHF
@@ -210,19 +226,21 @@ A20_STATE:
      MOV [EDI],      EDI
      CMPSD
      POPAD
-     JNE A20_ON
+     ;JNE A20_ON
      JE  A20_OFF
      RET
 
-A20_OFF:
-     MOV  SI, A20_STATE_OFF
-     CALL CODE_SEG:OUTPUT
-     RET
+     A20_OFF:
+          ;MOV SI, A20_STATE_OFF
+          ;CALL ERR_OUTPUT
+          MOV  SI, A20_STATE_OFF
+          CALL CODE_SEG:OUTPUT
+          RET
 
-A20_ON:
-     MOV  SI, A20_STATE_ON
-     CALL CODE_SEG:A20_ON_OUT
-     RET
+     A20_ON:
+          MOV  SI, A20_STATE_ON
+          CALL CODE_SEG:A20_ON_OUT
+          RET
 
 INIT_32BITS:
      MOV   AX, DATA_SEG
@@ -241,6 +259,8 @@ BEGIN_32BIT:
      CALL CODE_SEG:KERNEL_OFFSET ; GIVES CONTROL THE LINKED KERNEL THAT HAS A HEADER OF [ORG 0x2000]
                                  ; OTHER VALUES CAUSE A TGC FATAL ERROR IN QEMU FOR SOME REASON
      JMP $ ; LOOP JUST INCASE THE KERNEL DOES A RETURN, SHOULD BE REPLACED WITH A HANG ROUTINE
+     ;MOV SI, KERN_ERR
+     ;CALL ERR_OUTPUT
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-VARIABLES
 GDT_TABLE:
@@ -266,6 +286,7 @@ GDT_END:
 
 BOOT_DRIVE      DB 0
 KERN_INIT       DB 'KERN_INIT ' , 0
+KERN_ERR        DB 'KERN_ERR '  , 0
 DRIVE_LOADED    DB 'DRIVE_ON '  , 0
 DISK_ERROR      DB 'DISK_ERR '  , 0
 SECTOR_ERROR    DB 'SECT_ERR '  , 0
@@ -274,7 +295,7 @@ A20_STATE_ON    DB 'A20_ON '    , 0
 A20_STATE_OFF   DB 'A20_OFF '   , 0
 GDT_SUCCESS     DB 'GDT_LOAD '  , 0
 GDT_STATE_ON    DB 'GDT_ON '    , 0
-REBOOTING       DB 'REBOOT '    , 0
+BOOT_ERR        DB 'BOOT_ERR '  , 0
 
 TIMES 510-($-$$) DB 0
 DW 0xAA55 ; BOOT SIGNATURE
