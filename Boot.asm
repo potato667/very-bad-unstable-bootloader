@@ -117,7 +117,7 @@ INIT_32BITS_OUT: MOV AH, 0Eh
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-BOOTLOADING
 INIT_KERNEL:
      MOV  BX, KERNEL_OFFSET ; BX -> DESTINATION
-     MOV  DH,             2 ; DH -> NUM SECTORS
+     MOV  DH,             2 ; DH -> NUM SECTORS (WHEN SET TO 2 THE KERNEL LOADS, WHEN SET TO 1 A20 SUCCESS MESSAGE LOADS)
      MOV  DL,  [BOOT_DRIVE] ; DL ->        DISK
      MOV  SI,     KERN_INIT
      CALL            OUTPUT
