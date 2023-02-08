@@ -147,11 +147,8 @@ GDT_DATA       DW                  0xFFFF
 GDT_TABLE      DW GDT_END - GDT_START - 1
                DD               GDT_START
 GDT_END        DB                       0
-;JOKE          DB 'FIND HOT SINGLES AT HTTPS:',0
-;MOV SI, JOKE       ; ISSUE HERE
-;CALL HANG_ROUTINE
 
-;-=-=-=-=-=-=-=-=-=-=-=-=PAD OUT THE REST OF THE BOOTLOADER MEMORY-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=PAD OUT THE REST OF THE BOOTLOADER MEMORY WITH 0'S UNTIL 510 BYTES ARE FILLED-=-=-=
 TIMES 510 - ($ - $$) DB 0
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=BOOT SIGN-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 DW 0xAA55
