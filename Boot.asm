@@ -15,7 +15,7 @@
 
 ; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -no-stdlib -fno-pie -fno-pic -m32"
 ;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
-;         "ld Kernel_C.o Kernel_Entry.o -o Kernel_C_Full.o -melf_i386"
+;         "ld Kernel_C.o Kernel_Entry.o -o Kernel_C_Full.o -melf_i386" ; REMEMBER TO SET THE KERNEL LOCATION IN HERE
 ;         "objcopy -O binary Kernel_C_Full.elf Kernel_C_Full.bin"
 
 ; RUN     "qemu-system-i386 CruiseOS.bin"
@@ -80,11 +80,13 @@ OUTPUT:        MOV   AH,             0EH
  .EXIT:        RET
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-BOOTLOADING=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=-=-=-=-=-=-=-=-=-STARTING BY SETTING UP THE NEEDED REGISTERS=-=-=-=-=-=-=-=-=-=-=-=
 INIT_BOOT:     MOV   BX,    KERNEL_OFFSET ;-=-=-=-=-=-=-=-=BX: DESTINATION-=-=-=-=-=-=-=-=
                MOV   DH,     AMT_OF_SECTS ;-=-=-=-=-=-=-=-=DH: SECTOR NUMS-=-=-=-=-=-=-=-=
                MOV   DL,     [BOOT_DRIVE] ;-=-=-=-=-=-=-=-=DL:    DRIVE   -=-=-=-=-=-=-=-=
                JMP             INIT_DRIVE
 
+;-=-=-=-=-=-=-=-=-=-=-=-SETTING UP AND CHECKING THE DRIVE VARIABLES=-=-=-=-=-=-=-=-=-=-=-=
 INIT_DRIVE:    PUSH  DX
                MOV   AH,              02H
                MOV   AL,                1
@@ -100,6 +102,7 @@ INIT_DRIVE:    PUSH  DX
                JNE           HANG_ROUTINE
                JMP              A20_CHECK
 
+;-=CHECKING AND ENABLING A20 FOR USING OVER 1MB, EVEN BYTES AND PROTECTED MODE (32 BITS)-=
 A20_CHECK:     IN    AL,              92H
                TEST  AL,                2
                JNZ          BITS32_SWITCH
@@ -107,8 +110,9 @@ A20_CHECK:     IN    AL,              92H
                AND   AL,             0xFE
                OUT  92H,               AL
 
+;-=-=-=-=-=-=-=-=-=INITIALIZING AND SWITCHING TO 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=
 BITS32_SWITCH: CLI
-               LGDT           [GDT_TABLE]
+               LGDT           [GDT_TABLE];-=-=-=-=LOADING THE PREDEFINED GDT TABLE-=-=-=-=
                MOV   EAX,             CR0
                OR    EAX,              1H
                MOV   CR0,             EAX
@@ -118,12 +122,13 @@ BITS32_SWITCH: CLI
                MOV    ES,              AX
                MOV    FS,              AX
                MOV    GS,              AX
-               JMP          8:INIT_32BITS
+               JMP          8:INIT_32BITS;-=-=-=-=-=-=-=MOVING TO 32BIT CODE-=-=-=-=-=-=-=
 
 BITS 32;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-INIT_32BITS:   MOV   ESP,      ESP_OFFSET
-               JMP          KERNEL_OFFSET
+;-=-=-=-=-=-=-=-=STARTING 32BITS (PROTECTED MODE) AND MOVING TO THE KERNEL-=-=-=-=-=-=-=-=
+INIT_32BITS:   MOV   ESP,      ESP_OFFSET;-=-=-=-=-=-=-=-=-=-=-=????-=-=-=-=-=-=-=-=-=-=-=
+               JMP          KERNEL_OFFSET;-=-=GIVING CONTROL THEN MOVING TO THE KERNEL-=-=
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=VARIABLES-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 BOOT_DRIVE     DB                       0
