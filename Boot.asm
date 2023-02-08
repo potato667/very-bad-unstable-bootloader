@@ -15,7 +15,7 @@
 
 ; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -no-stdlib -fno-pie -fno-pic -m32"
 ;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
-;         "ld Kernel_C.o Kernel_Entry.o -o Kernel_C_Full.o"
+;         "ld Kernel_C.o Kernel_Entry.o -o Kernel_C_Full.o -melf_i386"
 ;         "objcopy -O binary Kernel_C_Full.elf Kernel_C_Full.bin"
 
 ; RUN     "qemu-system-i386 CruiseOS.bin"
