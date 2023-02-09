@@ -16,16 +16,16 @@
 
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
-;         "type Boot.bin Kernel.bin > CruiseOS.bin"
+;         "type Boot.bin Kernel.bin > OS.bin"
 
 ; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -nostdlib -fno-pie -fno-pic -m32"
 ;         "nasm Kernel_Entry.asm -f win32 -o Kernel_Entry.o"
-;         "ld Kernel_Entry.o Kernel_C.o -o Kernel_C_Full.exe -Ttext 0x2000"
-;         "objcopy -O binary Kernel_C_Full.exe Kernel_C_Full.bin"
-;         "type Kernel_C_Full Boot.bin > CruiseOS_Copy.bin"
+;         "ld -T NUL -o kernel.tmp -Ttext 0x2000 Kernel_Entry.o Kernel_C.o"
+;         "objcopy -O binary -j .text  kernel.tmp kernel_Full.bin"
+;         "type kernel_Full Boot.bin > OS_Copy.bin"
 
-; RUN     "qemu-system-i386 CruiseOS.bin"
-; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot CruiseOS.bin"
+; RUN     "qemu-system-i386 OS.bin"
+; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot OS.bin"
 
 ; BOOTLOADER FEATURES:-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]DRIVE CHECK-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -157,9 +157,6 @@ GDT_DATA       DW                  0FFFFH
 GDT_TABLE      DW GDT_END - GDT_START - 1
                DD               GDT_START
 GDT_END        DB                       0
-;JOKE          DB 'FIND HOT SINGLES AT HTTPS:',0
-;MOV SI, JOKE       ; ISSUE HERE
-;CALL HANG_ROUTINE
 
 ;-=-=-=PAD OUT THE REST OF THE BOOTLOADER MEMORY WITH 0'S UNTIL 510 BYTES ARE FILLED-=-=-=
 TIMES 510 - ($ - $$) DB 0
