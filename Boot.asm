@@ -4,19 +4,25 @@
 ; GLORIOUSCOW
 ; FOR ALL OF THEIR HELP AND SUPPORT!
 
+; OS IN USE:
+; -WINDOWS
+
 ; SOFTWARE NEEDED:
 ; -QEMU
 ; -NASM
 ; -GCC
+; -LD
+; -OBJCOPY
 
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
 ;         "type Boot.bin Kernel.bin > CruiseOS.bin"
 
-; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -no-stdlib -fno-pie -fno-pic -m32"
-;         "nasm Kernel_Entry.asm -o Kernel_Entry.o"
-;         "ld Kernel_C.o Kernel_Entry.o -o Kernel_C_Full.o -melf_i386" ; REMEMBER TO SET THE KERNEL LOCATION IN HERE
-;         "objcopy -O binary Kernel_C_Full.elf Kernel_C_Full.bin"
+; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -nostdlib -fno-pie -fno-pic -m32"
+;         "nasm Kernel_Entry.asm -f win32 -o Kernel_Entry.o"
+;         "ld Kernel_Entry.o Kernel_C.o -o Kernel_C_Full.exe -Ttext 0x2000"
+;         "objcopy -O binary Kernel_C_Full.exe Kernel_C_Full.bin"
+;         "type Kernel_C_Full Boot.bin > CruiseOS_Copy.bin"
 
 ; RUN     "qemu-system-i386 CruiseOS.bin"
 ; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot CruiseOS.bin"
@@ -107,7 +113,7 @@ A20_CHECK:     IN    AL,              92H
                TEST  AL,                2
                JNZ          BITS32_SWITCH
                OR    AL,                2
-               AND   AL,             0xFE
+               AND   AL,             0FEH
                OUT  92H,               AL
 
 ;-=-=-=-=-=-=-=-=-=INITIALIZING AND SWITCHING TO 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=
@@ -134,24 +140,26 @@ INIT_32BITS:   MOV   ESP,      ESP_OFFSET;-=-=-=-=-=-=-=-=-=-=-=????-=-=-=-=-=-=
 BOOT_DRIVE     DB                       0
 DISK_ERR       DB          'DISK_ERR ', 0
 SECT_ERR       DB          'SECT_ERR ', 0
-A20_STATE_OFF  DB           'A20_OFF ', 0
 BOOT_ERR       DB          'BOOT_ERR ', 0
-GDT_START      DQ                      0H
-GDT_CODE       DW                  0xFFFF
-               DW                      0H
-               DB                      0H
+GDT_START      DQ                       0
+GDT_CODE       DW                  0FFFFH
+               DW                       0
+               DB                       0
                DB               10011010B
                DB               11001111B
-               DB                      0H
-GDT_DATA       DW                  0xFFFF
-               DW                      0H
-               DB                      0H
+               DB                       0
+GDT_DATA       DW                  0FFFFH
+               DW                       0
+               DB                       0
                DB               10010010B
                DB               11001111B
-               DB                      0H
+               DB                       0
 GDT_TABLE      DW GDT_END - GDT_START - 1
                DD               GDT_START
 GDT_END        DB                       0
+;JOKE          DB 'FIND HOT SINGLES AT HTTPS:',0
+;MOV SI, JOKE       ; ISSUE HERE
+;CALL HANG_ROUTINE
 
 ;-=-=-=PAD OUT THE REST OF THE BOOTLOADER MEMORY WITH 0'S UNTIL 510 BYTES ARE FILLED-=-=-=
 TIMES 510 - ($ - $$) DB 0
