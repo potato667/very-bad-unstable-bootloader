@@ -41,8 +41,8 @@
 ; [-]FAT 32 FILESYSTEM SUPPORT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]INITIALIZING THE RTC (REAL TIME CLOCK)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]INITIALIZING INT 33h (THE MOUSE CURSOR)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]IDT (INTERRUPT DESCRIPTOR TABLE)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]ISR (INTERRUPT SERVICE ROUTINE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [-]IDT (INTERRUPT DESCRIPTOR TABLE)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= <|FOR THE KERNEL
+; [-]ISR (INTERRUPT SERVICE ROUTINE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= <|
 ; [-]VESA BIOS EXTENTIONS=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]RESOLUTION TO 1920*1080-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]MULTI-THREADING-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -96,9 +96,9 @@ HANG_ROUTINE:  CALL               OUTPUT
 
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=PRINT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-OUTPUT:        MOV   AH,             0EH
+OUTPUT:        MOV    AH,            0EH
 .AGAIN:        LODSB
-               CMP   AL,               0
+               CMP    AL,              0
                JE                  .EXIT
                INT                   10H
                JMP                .AGAIN
@@ -112,27 +112,27 @@ OUTPUT:        MOV   AH,             0EH
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 ;-=-=-=-=-=-=-=-=-=-=-=-STARTING BY SETTING UP THE NEEDED REGISTERS=-=-=-=-=-=-=-=-=-=-=-=
-INIT_BOOT:     MOV   BX,    KERNEL_OFFSET ;-=-=-=-=-=-=-=-=BX: DESTINATION-=-=-=-=-=-=-=-=
-               MOV   DH,     AMT_OF_SECTS ;-=-=-=-=-=-=-=-=DH: SECTOR NUMS-=-=-=-=-=-=-=-=
-               MOV   DL,     [BOOT_DRIVE] ;-=-=-=-=-=-=-=-=DL:       DRIVE-=-=-=-=-=-=-=-=
+INIT_BOOT:     MOV    BX,   KERNEL_OFFSET ;-=-=-=-=-=-=-=-=BX: DESTINATION-=-=-=-=-=-=-=-=
+               MOV    DH,    AMT_OF_SECTS ;-=-=-=-=-=-=-=-=DH: SECTOR NUMS-=-=-=-=-=-=-=-=
+               MOV    DL,    [BOOT_DRIVE] ;-=-=-=-=-=-=-=-=DL:       DRIVE-=-=-=-=-=-=-=-=
                JMP             INIT_DRIVE ;-=-=-=-=-=TO START INITIALIZING DRIVE-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
 
 ;-=-=-=-=-=-=-=-=-=-=-=-SETTING UP AND CHECKING THE DRIVE VARIABLES=-=-=-=-=-=-=-=-=-=-=-=
-INIT_DRIVE:    PUSH  DX
-               MOV   AH,              02H
-               MOV   AL,                1
-               MOV   CL,              02H
-               MOV   CH,              00H
-               MOV   DH,              00H
+INIT_DRIVE:    PUSH                    DX
+               MOV    AH,             02H
+               MOV    AL,               1
+               MOV    CL,             02H
+               MOV    CH,             00H
+               MOV    DH,             00H
                INT                    13H
                POP                     DX
-               MOV   SI,         DISK_ERR
+               MOV    SI,        DISK_ERR
                JC            HANG_ROUTINE
-               CMP   AL,               DH
-               MOV   SI,         SECT_ERR
+               CMP    AL,              DH
+               MOV    SI,        SECT_ERR
                JNE           HANG_ROUTINE
                JMP              A20_CHECK
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -140,12 +140,12 @@ INIT_DRIVE:    PUSH  DX
 
 
 ;-=CHECKING AND ENABLING A20 FOR USING OVER 1MB, EVEN BYTES AND PROTECTED MODE (32 BITS)-=
-A20_CHECK:     IN    AL,              92H
-               TEST  AL,                2
+A20_CHECK:     IN     AL,             92H
+               TEST   AL,               2
                JNZ          BITS32_SWITCH
-               OR    AL,                2
-               AND   AL,             0FEH
-               OUT  92H,               AL
+               OR     AL,               2
+               AND    AL,            0FEH
+               OUT   92H,              AL
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
