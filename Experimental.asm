@@ -17,16 +17,16 @@ GDT; SPECIAL THANKS TO:
 
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
-;         "type Boot.bin Kernel.bin > CruiseOS.bin"
+;         "type Boot.bin Kernel.bin > OS.bin"
 
 ; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -nostdlib -fno-pie -fno-pic -m32"
 ;         "nasm Kernel_Entry.asm -f win32 -o Kernel_Entry.o"
 ;         "ld -T NUL -o kernel.tmp -Ttext 0x2000 Kernel_Entry.o Kernel_C.o"
 ;         "objcopy -O binary -j .text  kernel.tmp kernel_Full.bin"
-;         "type Boot.bin kernel_Full.bin > CruiseOS_Copy.bin"
+;         "type Boot.bin kernel_Full.bin > OS_Copy.bin"
 
-; RUN     "qemu-system-i386 CruiseOS.bin"
-; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot CruiseOS.bin"
+; RUN     "qemu-system-i386 OS.bin"
+; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot OS.bin"
 
 ; BOOTLOADER FEATURES:-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]DRIVE CHECK-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
