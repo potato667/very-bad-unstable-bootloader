@@ -1,51 +1,31 @@
-; SPECIAL THANKS TO:
-; IQON
-; GOOGLE0101
-; GLORIOUSCOW
-; FOR ALL OF THEIR HELP AND SUPPORT!
-
-; OS IN USE:
-; -WINDOWS
-
-; SOFTWARE NEEDED:
-; -OBJCOPY
-; -TYPE
-; -QEMU
-; -NASM
-; -GCC
-; -LD
-
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
 ;         "type Boot.bin Kernel.bin > OS.bin"
 
 ; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -nostdlib -fno-pie -fno-pic -m32"
 ;         "nasm Kernel_Entry.asm -f win32 -o Kernel_Entry.o"
-;         "ld -T NUL -o kernel.tmp -Ttext 0x2000 Kernel_Entry.o Kernel_C.o"
+;         "ld -T NUL -o kernel.tmp -Ttext 0x4000 Kernel_Entry.o Kernel_C.o"
 ;         "objcopy -O binary -j .text  kernel.tmp kernel_Full.bin"
 ;         "type Boot.bin kernel_Full.bin > OS_Copy.bin"
 
-; RUN     "qemu-system-i386 OS.bin"
-; RUN DBG "qemu-system-i386 -monitor stdio -d int -no-reboot OS.bin"
+; RUN     "qemu-system-x86_64 OS.bin"
+; RUN DBG "qemu-system-x86_64 -monitor stdio -d int -no-reboot OS.bin"
 
 ; BOOTLOADER FEATURES:-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]DRIVE CHECK-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]HANG ROUTINES-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]A20-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]GDT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]GDT32-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]GDT64-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]SECTOR INITIALIZATION-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]MULTI SECTORS-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [-]MULTI-SECTORS-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]32 BIT PROTECTED MODE-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]64 BIT LONG MODE -> NOT NOW-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]64 BITS LONG MODE-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]OLD BIOS PATCHES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]FAT 32 FILESYSTEM SUPPORT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]INITIALIZING THE RTC (REAL TIME CLOCK)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]INITIALIZING INT 33h (THE MOUSE CURSOR)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]IDT (INTERRUPT DESCRIPTOR TABLE)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= <|FOR THE KERNEL
-; [-]ISR (INTERRUPT SERVICE ROUTINE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= <|
-; [-]IRQ (INTERRUPT REQUEST)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= <|
+; [-]INITIALIZING THE MOUSE CURSOR-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]VESA BIOS EXTENTIONS=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]RESOLUTION TO 1920*1080-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [-]CHANGE THE SCREEN RESOLUTION TO 1920*1080-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [-]MULTI-THREADING-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]MOVING TO THE KERNEL=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -103,7 +83,7 @@ OUTPUT:        MOV    AH,            0EH
                JE                  .EXIT
                INT                   10H
                JMP                .AGAIN
- .EXIT:        RET
+.EXIT:         RET
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
@@ -153,7 +133,7 @@ A20_CHECK:     IN     AL,             92H
 
 ;-=-=-=-=-=-=-=-=-=INITIALIZING AND SWITCHING TO 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=
 BITS32_SWITCH: CLI
-               LGDT           [GDT_TABLE] ;-=-=-=LOADING UP THE PREDEFINED GDT TABLE-=-=-=
+               LGDT           [GDT32_TABLE] ;-=-=-=LOADING UP THE PREDEFINED GDT TABLE-=-=-=
                MOV   EAX,             CR0 ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
                OR    EAX,              1H ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
                MOV   CR0,             EAX ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
@@ -172,12 +152,43 @@ BITS 32 ;-=-=-=-=-=-=-=-=-=-=-=THE CODE EXECUTED HERE IS 32 BIT CODE-=-=-=-=-=-=
 
 
 
-;-=-=-=-=-=-=-=-=STARTING 32BITS (PROTECTED MODE) AND MOVING TO THE KERNEL-=-=-=-=-=-=-=-=
-INIT_32BITS:   MOV   ESP,      ESP_OFFSET ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
-               JMP          KERNEL_OFFSET ;-=-=GIVING CONTROL AND MOVING TO THE KERNEL-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-SUBROUTINES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-BITS64_SWITCH: PUSHFD
+
+
+;-=-=-=-=-=-=LEAVE A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS AND IS CAUSED BY-=-=-=-=-=-=
+HANG_ROUTINE32:CALL             OUTPUT32
+        HANG32:HLT
+               JMP                HANG32
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=PRINT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+OUTPUT32:      MOV   EDI,      [0xB8000]
+.AGAIN:        LODSB
+               OR     AL,             AL
+               JZ                  .EXIT
+               MOV    AH,              3
+               STOSW
+               JMP                .AGAIN
+.EXIT:         MOV [0xB8000],        EDI
+               RET
+
+
+
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-BOOTLOADING=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=START 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+INIT_32BITS:   MOV   ESP,      ESP_OFFSET
+               LGDT         [GDT64_TABLE]
+               PUSHFD
                POP                    EAX
                MOV   ECX,             EAX
                XOR   EAX,           1<<21
@@ -187,125 +198,111 @@ BITS64_SWITCH: PUSHFD
                POP                    EAX
                PUSH                   ECX
                POPFD
-               XOR               EAX, ECX
-               JZ                .NOCPUID
-               RET
+               XOR   EAX,             ECX
+               MOV    SI,        NO_CPUID
+               JZ          HANG_ROUTINE32
                MOV   EAX,       80000000H
                CPUID
                CMP   EAX,       80000001H
-               JB             .NOLONGMODE
+               MOV    SI,        NO_64BIT
+               JB          HANG_ROUTINE32
                MOV   EAX,       80000001H
                CPUID
                TEST  EDX,           1<<29
-               JZ             .NOLONGMODE
-               MOV   EAX,             CR0
-               AND   EAX, 01111111111111111111111111111111B
-               MOV   CR0,             EAX
-               MOV   EDI,           1000H
-               MOV   CR3,             EDI
-               XOR   EAX,             EAX
-               MOV   ECX,            4096
-               REP   STOSD
-               MOV   EDI,             CR3
-               MOV   DWORD [EDI],   2003H
-               ADD   EDI,           1000H
-               MOV   DWORD [EDI],   3003H
-               ADD   EDI,           1000H
-               MOV   DWORD [EDI],   4003H
-               ADD   EDI,           1000H
-               MOV   EBX,       00000003H
-               MOV   ECX,             512
-.SET_ENTRY:    MOV   DWORD [EDI],     EBX
-               ADD   EBX,           1000H
-               ADD   EDI,               8
-               LOOP            .SET_ENTRY
-               MOV   EAX,             CR4
-               OR    EAX,            1<<5
-               MOV   CR4,             EAX
-               MOV   EAX,              7H
-               XOR   ECX,             ECX
-               CPUID
-               TEST  ECX,         (1<<16)
-               JNZ        .5_LEVEL_PAGING
-               MOV   EAX,             CR4
-               OR    EAX,         (1<<12)
-               MOV   CR4,             EAX
-               MOV   ECX,       C0000080H
-               RDMSR
-               OR    EAX,            1<<8
-               WRMSR
-               MOV   EAX,             CR0
-               OR    EAX,      1<<31|1<<0
-               MOV   CR0,             EAX
-               MOV   ECX,       C0000080H
-               RDMSR
-               OR    EAX,            1<<8
-               WRMSR
-               MOV   EAX,             CR0
-               OR    EAX,           1<<31
-               MOV   CR0,             EAX
-               LGDT       [GDT.GDT64_PTR]
-               JMP   GDT.CODE:INIT_64BITS
+               JZ          HANG_ROUTINE32
+               JMP GDT64_CODE:INIT_64BITS ;-=-=-=-=-=-=-=MOVE TO 64BITS CODE-=-=-=-=-=-=-=
+                           ;^TRIPLE FAULT
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-[BITS 64]
 
-INIT_64BITS:   CLI
-               MOV    AX,  GDT.GDT64_DATA
+
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-SUBROUTINES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+BITS 64 ;-=-=-=-=-=-=-=-=-=-=-=THE CODE EXECUTED HERE IS 64 BIT CODE-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-SUBROUTINES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;-=-=-=-=-=-=LEAVE A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS AND IS CAUSED BY-=-=-=-=-=-=
+HANG_ROUTINE64:CALL             OUTPUT64
+        HANG64:HLT
+               JMP                HANG64
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=PRINT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+OUTPUT64:      MOV   EDI,      [0xB8000]
+.AGAIN:        LODSB
+               OR     AL,             AL
+               JZ                  .EXIT
+               MOV    AH,              3
+               STOSW
+               JMP                .AGAIN
+.EXIT:         MOV [0xB8000],        EDI
+               RET
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-BOOTLOADING=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
+;-=-=-=-=-=-=-=-=-=-=START 64BITS (LONG MODE) AND MOVING TO THE KERNEL-=-=-=-=-=-=-=-=-=-=
+INIT_64BITS:   MOV    AX,      GDT64_DATA
                MOV    DS,              AX
                MOV    ES,              AX
                MOV    FS,              AX
                MOV    GS,              AX
                MOV    SS,              AX
-               MOV   EDI,          B8000H
-               MOV   RAX, 1F201F201F201F20H
-               MOV   ECX,             500
-               REP                  STOSQ
-               HLT
+               MOV    SI,        NO_64BIT
+               JMP          KERNEL_OFFSET ;-=-=GIVING CONTROL AND MOVING TO THE KERNEL-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+
+
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=VARIABLES-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
 BOOT_DRIVE     DB                       0
 DISK_ERR       DB          'DISK_ERR ', 0
 SECT_ERR       DB          'SECT_ERR ', 0
+NO_CPUID       DB          'NO_CPUID ', 0
+NO_64BIT       DB          'NO_64BIT ', 0
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=32BIT GDT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-GDT_START      DQ                       0
-GDT_CODE       DW                  0FFFFH
-               DW                       0
-               DB                       0
-               DB               10011010B
-               DB               11001111B
-               DB                       0
-GDT_DATA       DW                  0FFFFH
-               DW                       0
-               DB                       0
-               DB               10010010B
-               DB               11001111B
-               DB                       0
-GDT_TABLE      DW GDT_END - GDT_START - 1
-               DD               GDT_START
-GDT_END        DB                       0
+GDT32_START    DQ                       0
+GDT32_CODE     DW                0FFFFH,0
+               DB 0,10011010B,11001111B,0
+GDT32_DATA     DW                0FFFFH,0
+               DB 0,10010010B,11001111B,0
+GDT32_TABLE    DW     $ - GDT32_START - 1
+               DD             GDT32_START
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=64BIT GDT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-GDT:
-GDT64_NULL:    EQU                $ - GDT
-               DQ                       0
-GDT64_CODE:    EQU                $ - GDT
-               DD                  0FFFFH
-               DB                       0
-               DB     1<<7|1<<4|1<<3|1<<4
-               DB          1<<7|1<<5| 0FH
-               DB                       0
-GDT64_DATA:    EQU                $ - GDT
-               DD                  0FFFFH
-               DB                       0
-               DB          1<<7|1<<4|1<<4
-               DB          1<<7|1<<6| 0FH
-               DB                       0
-GDT64_TSS:     EQU                $ - GDT
-               DD               00000068H
-               DD               00CF8900H
-GDT64_PTR:     DW             $ - GDT - 1
-               DQ                     GDT
+GDT64_START    DQ                       0
+GDT64_CODE     DD                       0
+               DB 0,10011000B,00100000B,0
+GDT64_DATA     DD                       0
+               DB 0,10010000B,00000000B,0
+GDT64_TABLE    DW     $ - GDT64_START - 1
+               DD             GDT64_START
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
