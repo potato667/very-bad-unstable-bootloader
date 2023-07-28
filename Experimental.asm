@@ -1,3 +1,20 @@
+; SPECIAL THANKS TO:
+; IQON
+; GOOGLE0101
+; GLORIOUSCOW
+; FOR ALL OF THEIR HELP AND SUPPORT!
+
+; OS IN USE:
+; -WINDOWS
+
+; SOFTWARE NEEDED:
+; -OBJCOPY
+; -TYPE
+; -QEMU
+; -NASM
+; -GCC
+; -LD
+
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
 ;         "nasm Kernel.asm -f bin -o Kernel.bin"
 ;         "type Boot.bin Kernel.bin > OS.bin"
