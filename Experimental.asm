@@ -188,7 +188,7 @@ OUTPUT32:      MOV   EDI,      [0xB8000]
 ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=START 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 INIT_32BITS:   MOV   ESP,      ESP_OFFSET
                LGDT         [GDT64_TABLE]
-               PUSHFD
+               PUSHFD ; CPUID CHECK START
                POP                    EAX
                MOV   ECX,             EAX
                XOR   EAX,           1<<21
@@ -200,16 +200,49 @@ INIT_32BITS:   MOV   ESP,      ESP_OFFSET
                POPFD
                XOR   EAX,             ECX
                MOV    SI,        NO_CPUID
-               JZ          HANG_ROUTINE32
-               MOV   EAX,       80000000H
+               JZ          HANG_ROUTINE32 ; CPUID CHECK END
+               MOV   EAX,       80000000H ; LONG MODE AVAILABILITY CHECK START
                CPUID
                CMP   EAX,       80000001H
                MOV    SI,        NO_64BIT
-               JB          HANG_ROUTINE32
-               MOV   EAX,       80000001H
+               JB          HANG_ROUTINE32 ; LONG MODE AVAILABILITY CHECK END
+               MOV   EAX,       80000001H ; DETECT LONG MODE START
                CPUID
                TEST  EDX,           1<<29
-               JZ          HANG_ROUTINE32
+               JZ          HANG_ROUTINE32 ; DETECT LONG MODE END
+               MOV   EAX,             CR0 ; DISABLE OLD PAGING START
+               AND   EAX, 01111111111111111111111111111111B
+               MOV   CR0,             EAX ; DISABLE OLD PAGING END
+               MOV   EDI,          0x1000 ; CLEAR PAGING TABLES START
+               MOV   CR3,             EDI
+               XOR   EAX,             EAX
+               MOV   ECX,            4096
+               REP                  STOSD
+               MOV   EDI,             CR3 ; CLEAR PAGING TABLES END
+               MOV DWORD [EDI],    0x2003
+               ADD   EDI,          0x1000
+               MOV DWORD [EDI],    0x3003
+               ADD   EDI,          0x1000
+               MOV DWORD [EDI],    0x4003
+               ADD   EDI,          0x1000
+               MOV   EBX,      0x00000003
+               MOV   ECX,             512
+    .SET_ENTRY:MOV DWORD [EDI],       EBX
+               ADD   EBX,          0x1000
+               ADD   EDI,               8
+               LOOP            .SET_ENTRY
+               MOV   EAX,             CR4
+               OR    EAX,            1<<5
+               MOV   CR4,             EAX
+               ; FUTURE OF X86_64 THE PML5 (NOT IMPLEMENTED YET)
+               MOV   ECX,      0xC0000080
+               RDMSR
+               OR    EAX,            1<<8
+               WRMSR
+               MOV   EAX,             CR0
+               OR    EAX,           1<<31
+               JMP         HANG_ROUTINE32 ; <---- DEBUG
+               MOV   CR0,             EAX ; <---- TRIPLE FAULT
                JMP GDT64_CODE:INIT_64BITS ;-=-=-=-=-=-=-=MOVE TO 64BITS CODE-=-=-=-=-=-=-=
                            ;^TRIPLE FAULT
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -261,13 +294,17 @@ OUTPUT64:      MOV   EDI,      [0xB8000]
 
 
 ;-=-=-=-=-=-=-=-=-=-=START 64BITS (LONG MODE) AND MOVING TO THE KERNEL-=-=-=-=-=-=-=-=-=-=
-INIT_64BITS:   MOV    AX,      GDT64_DATA
-               MOV    DS,              AX
-               MOV    ES,              AX
-               MOV    FS,              AX
-               MOV    GS,              AX
-               MOV    SS,              AX
-               MOV    SI,        NO_64BIT
+INIT_64BITS:   ;MOV    AX,      GDT64_DATA
+               ;MOV    DS,              AX
+               ;MOV    ES,              AX
+               ;MOV    FS,              AX
+               ;MOV    GS,              AX
+               ;MOV    SS,              AX
+               ;MOV   EDI,         0xB8000
+               ;MOV   RAX, 0x1F201F201F201F20
+               ;MOV   ECX,             500
+               ;REP                  STOSQ
+              ;MOV    SI,        NO_64BIT
                JMP          KERNEL_OFFSET ;-=-=GIVING CONTROL AND MOVING TO THE KERNEL-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -311,3 +348,4 @@ GDT64_TABLE    DW     $ - GDT64_START - 1
 TIMES 510 - ($ - $$) DB 0 ;-=PAD OUT THE REST OF THE BOOTLOADER WITH 0'S UNTIL 510 BYTES-=
 DW 0xAA55 ;-=-=-=-=-=-=-=A BIOS SIGNATURE TO SIGNAL THAT THIS IS A BOOT FILE-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
