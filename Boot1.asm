@@ -16,30 +16,11 @@
 ; -LD
 
 ; COMPILE "nasm Boot.asm -f bin -o Boot.bin"
-;         "nasm Kernel.asm -f bin -o Kernel.bin"
-;         "type Boot.bin Kernel.bin > OS.bin"
+;         "nasm Boot2.asm -f bin -o Boot2.bin"
+;         "type Boot.bin Boot2.bin > Boot_1.bin"
 
-; ASM & C "gcc -c Kernel_C.c -o Kernel_C.o -ffreestanding -nostdlib -fno-pie -fno-pic -m32"
-;         "nasm Kernel_Entry.asm -f win32 -o Kernel_Entry.o"
-;         "ld -T NUL -o kernel.tmp -Ttext 0x4000 Kernel_Entry.o Kernel_C.o"
-;         "objcopy -O binary -j .text  kernel.tmp kernel_Full.bin"
-;         "type Boot.bin kernel_Full.bin > OS_Copy.bin"
-
-; RUN     "qemu-system-x86_64 OS.bin"
-; RUN DBG "qemu-system-x86_64 -monitor stdio -d int -no-reboot OS.bin"
-
-; BOOTLOADER FEATURES:-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-;=-=-=-=-=-=-PAGING, FILE SYSTEM AND VESA BIOS EXTENTIONS ARE LEFT FOR STAGE 2-=-=-=-=-=-=
-; [X]DRIVE CHECK-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]HANG ROUTINES-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]A20-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]32BIT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]64BIT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]SECTOR INITIALIZATION-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]MULTI-SECTORS-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]OLD BIOS PATCHES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]STAGE 2 BOOTLOADER=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]MOVING TO THE KERNEL=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; RUN     "qemu-system-x86_64 Boot_1.bin"
+; RUN DBG "qemu-system-x86_64 -monitor stdio -d int -no-reboot Boot_1.bin"
 
 
 
