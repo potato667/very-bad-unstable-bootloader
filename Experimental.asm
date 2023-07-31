@@ -29,22 +29,17 @@
 ; RUN DBG "qemu-system-x86_64 -monitor stdio -d int -no-reboot OS.bin"
 
 ; BOOTLOADER FEATURES:-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+;=-=-=-=-=-=-PAGING, FILE SYSTEM AND VESA BIOS EXTENTIONS ARE LEFT FOR STAGE 2-=-=-=-=-=-=
 ; [X]DRIVE CHECK-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]HANG ROUTINES-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]A20-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]GDT32-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]GDT64-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]32BIT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]64BIT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ; [X]SECTOR INITIALIZATION-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]MULTI-SECTORS-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]32 BIT PROTECTED MODE-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]64 BITS LONG MODE-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]OLD BIOS PATCHES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]FAT 32 FILESYSTEM SUPPORT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]INITIALIZING THE MOUSE CURSOR-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]VESA BIOS EXTENTIONS=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]CHANGE THE SCREEN RESOLUTION TO 1920*1080-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [-]MULTI-THREADING-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-; [X]MOVING TO THE KERNEL=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]MULTI-SECTORS-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [X]OLD BIOS PATCHES=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [-]STAGE 2 BOOTLOADER=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+; [-]MOVING TO THE KERNEL=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
 
@@ -52,6 +47,9 @@
 BITS 16 ;-=-=-=-=-=-=-=-=-=-=-=THE CODE EXECUTED HERE IS 16 BIT CODE-=-=-=-=-=-=-=-=-=-=-=
 
 ;-=-=-=-=-=-=-=-=-=-=CLEARING SEGMENT REGISTERS FOR PREDICTABLE VALUES-=-=-=-=-=-=-=-=-=-=
+CLI ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=CLEAR THE INTERRUPT VALUE-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+CLD ;-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=CLEAR DIRECTION FLAGS-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
 JMP 0:ENTRY ;-=-=-=-=-=-=-=-=-=-=-=-=CLEAR THE CS SEGMENT REGISTER-=-=-=-=-=-=-=-=-=-=-=-=
 ENTRY:
 
@@ -61,7 +59,8 @@ MOV DS,                AX ;<|
 MOV ES,                AX ;<|
 MOV GS,                AX ;<|
 MOV [BOOT_DRIVE],      DL ;-=-=-=-=-=-=-=-=SETTING THE BOOT DRIVE REGISTER-=-=-=-=-=-=-=-=
-MOV SP,         SP_OFFSET ;-=-=-=-=-=-=SETTING UP THE BOOT PLACEMENT IN MEMORY-=-=-=-=-=-=
+MOV SP,         SP_OFFSET ;-=-=-=-=-=-=-=SETTING UP THE STACK POINTER OFFSET-=-=-=-=-=-=-=
+MOV BP,                SP ;-=-=-=-=-=-=-=-=-=SETTING UP THE BASE POINTER-=-=-=-=-=-=-=-=-=
 JMP             INIT_BOOT ;-=-=-=-=-=-=-=-=-=-=-=BOOTING STARTS HERE-=-=-=-=-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -69,7 +68,7 @@ JMP             INIT_BOOT ;-=-=-=-=-=-=-=-=-=-=-=BOOTING STARTS HERE-=-=-=-=-=-=
 
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-DEFINED VARIABLES-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 KERNEL_OFFSET EQU  0x2000 ;-=KERNEL CODE PLACEMENT / POSITION IN MEMORY IE: [ORG 0x2000]-=
-SP_OFFSET     EQU  0x7C00 ;-=-=-=BOOTLOADER CODE PLACEMENT IN MEMORY JUST LIKE ABOVE-=-=-=
+SP_OFFSET     EQU  0x7C00 ;-=-=-=-=-=-=-STACK POINTER OFFSET (START POSITION)=-=-=-=-=-=-=
 ESP_OFFSET    EQU 0x90000 ;-=-=-=-=-=-=32BIT VERSION OF THE SP_OFFSET REGISTER-=-=-=-=-=-=
 AMT_OF_SECTS  EQU       1 ;HOW MANY SECTORS HAVE BEEN INITIALIZED, EACH CONTAINS 512 BYTES
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -82,20 +81,20 @@ AMT_OF_SECTS  EQU       1 ;HOW MANY SECTORS HAVE BEEN INITIALIZED, EACH CONTAINS
 
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-HANG FUNCTION-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-LEAVE A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS AND IS CAUSED BY-=-=-=-=-=-=
-HANG_ROUTINE:  CALL               OUTPUT
-        HANG:  CLI
-               HLT
-               JMP                  HANG
+HANG_ROUTINE:  CALL               OUTPUT ;-=-=-=-=OUTPUT TEXT FROM THE SI REGISTER-=-=-=-=
+        HANG:  CLI                       ;-=-=-=-=-=-=-=-=CLEAR INTERRUPTS-=-=-=-=-=-=-=-=
+               HLT                       ;-=-=-=-=-=-=-=-=-HALT PROCESSOR=-=-=-=-=-=-=-=-=
+               JMP                  HANG ;-RESTART THE ROUTINE IF AN INTERRUPT IS STARTED=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-PRINT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-OUTPUT:        MOV    AH,            0EH
-.AGAIN:        LODSB
-               CMP    AL,              0
-               JE                  .EXIT
-               INT                   10H
-               JMP                .AGAIN
-.EXIT:         RET
+OUTPUT:        MOV    AH,            0EH ;-=-=-=-=-=-=SET AH TO SPECIFY OUTPUT-=-=-=-=-=-=
+.AGAIN:        LODSB                     ;-=-=-=-=-=INCREMENTING THE SI REGISTER-=-=-=-=-=
+               CMP    AL,              0 ;-=-=-=-=-=ARE THERE ZERO LETTERS LEFT?-=-=-=-=-=
+               JE                  .EXIT ;-=-=-=-=-=-=IF YES, EXIT THE ROUTINE-=-=-=-=-=-=
+               INT                   10H ;-=-=-=IF NO, THEN PRINT THE CURRENT LETTER-=-=-=
+               JMP                .AGAIN ;-=-=-=-=-=-=REPEAT THE ROUTINE AGAIN-=-=-=-=-=-=
+.EXIT:         RET                       ;-=-=-=-RETURN TO THE FUNCTION THAT CALLED=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
@@ -138,18 +137,19 @@ A20_CHECK:     IN     AL,             92H
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 ;=-=-=-=-=-=-=-=-=-INITIALIZING AND SWITCHING TO 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=
-BITS32_SWITCH: CLI
+BITS32_SWITCH: IN     AL,            0EEH ;-=-=-=-=-=-=-=-=ENABLE A20 LINE-=-=-=-=-=-=-=-=
+               CLI                        ;-=-=-=-=-=-=-=CLEARING INTERRUPTS-=-=-=-=-=-=-=
                LGDT         [GDT32_TABLE] ;-=-=-=LOADING UP THE PREDEFINED GDT TABLE-=-=-=
                MOV   EAX,             CR0 ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
                OR    EAX,              1H ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
                MOV   CR0,             EAX ;-=-=-=-=-=-=-=-=-=-=-=???-=-=-=-=-=-=-=-=-=-=-=
-               MOV    AX,              16 ;-+SETTING UP SEGMENT REGISTERS FOR 32BIT CODE-=
+               MOV    AX,              16 ;-=SETTING UP SEGMENT REGISTERS FOR 32BIT CODE-=
                MOV    DS,              AX ;<|
                MOV    SS,              AX ;<|
                MOV    ES,              AX ;<|
                MOV    FS,              AX ;<|
                MOV    GS,              AX ;<|
-               JMP          8:INIT_32BITS ;=-=-=-=-=-=-=MOVING TO 32BIT CODE-=-=-=-=-=-=-=
+               JMP  8:INIT_32BITS ;=-=-=-=-=-=-=MOVING TO 32BIT CODE-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
@@ -161,20 +161,20 @@ BITS 32 ;=-=-=-=-=-=-=-=-=-=-=-THE CODE EXECUTED HERE IS 32 BIT CODE-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 ;=-=-=-=-=-==LEAVE A DISCRIPTIVE MESSAGE OF WHAT THE ERROR IS AND IS CAUSED BY-=-=-=-=-=-=
-HANG_ROUTINE32:CALL             OUTPUT32
+HANG_ROUTINE32:CALL              OUTPUT32
         HANG32:HLT
-               JMP                HANG32
+               JMP                 HANG32
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-PRINT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-OUTPUT32:      MOV   EDI,      [0xB8000]
+OUTPUT32:      MOV   EDI,       [0xB8000]
 .AGAIN:        LODSB
-               OR     AL,             AL
-               JZ                  .EXIT
-               MOV    AH,              3
+               OR     AL,              AL
+               JZ                   .EXIT
+               MOV    AH,               3
                STOSW
-               JMP                .AGAIN
-.EXIT:         MOV [0xB8000],        EDI
+               JMP                 .AGAIN
+.EXIT:         MOV [0xB8000],         EDI
                RET
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -187,7 +187,7 @@ OUTPUT32:      MOV   EDI,      [0xB8000]
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-START 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 INIT_32BITS:   MOV   ESP,      ESP_OFFSET
                LGDT         [GDT64.TABLE]
-               PUSHFD ; CPUID CHECK START
+               PUSHFD ; CPUID CHECK
                POP                    EAX
                MOV   ECX,             EAX
                XOR   EAX,           1<<21
@@ -199,19 +199,18 @@ INIT_32BITS:   MOV   ESP,      ESP_OFFSET
                POPFD
                XOR   EAX,             ECX
                MOV    SI,        NO_CPUID
-               JZ          HANG_ROUTINE32 ; CPUID CHECK END
-               MOV   EAX,       80000000H ; LONG MODE AVAILABILITY CHECK START
+               JZ          HANG_ROUTINE32
+               MOV   EAX,       80000000H ; LONG MODE AVAILABILITY CHECK
                CPUID
                CMP   EAX,       80000001H
                MOV    SI,        NO_64BIT
-               JB          HANG_ROUTINE32 ; LONG MODE AVAILABILITY CHECK END
-               MOV   EAX,       80000001H ; DETECT LONG MODE START
+               JB          HANG_ROUTINE32
+               MOV   EAX,       80000001H ; DETECT LONG MODE
                CPUID
                TEST  EDX,           1<<29
                MOV    SI,        NO_CPUID
-               JZ          HANG_ROUTINE32 ; DETECT LONG MODE END
-;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=PAGING LEFT FOR STAGE 2=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-               JMP  GDT64.CODE:INIT_64BITS ;-=-=-=-=-=-=-=MOVE TO 64BIT CODE-=-=-=-=-=-=-=
+               JZ          HANG_ROUTINE32
+               JMP GDT64.CODE:INIT_64BITS ;-=-=-=-=-=-=-=MOVE TO 64BITS CODE-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
