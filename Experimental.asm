@@ -60,7 +60,6 @@ MOV ES,                AX ;<|
 MOV GS,                AX ;<|
 MOV [BOOT_DRIVE],      DL ;-=-=-=-=-=-=-=-=SETTING THE BOOT DRIVE REGISTER-=-=-=-=-=-=-=-=
 MOV SP,         SP_OFFSET ;-=-=-=-=-=-=-=SETTING UP THE STACK POINTER OFFSET-=-=-=-=-=-=-=
-MOV BP,                SP ;-=-=-=-=-=-=-=-=-=SETTING UP THE BASE POINTER-=-=-=-=-=-=-=-=-=
 JMP             INIT_BOOT ;-=-=-=-=-=-=-=-=-=-=-=BOOTING STARTS HERE-=-=-=-=-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -107,11 +106,8 @@ OUTPUT:        MOV    AH,            0EH ;-=-=-=-=-=-=SET AH TO SPECIFY OUTPUT-=
 INIT_BOOT:     MOV    BX,   KERNEL_OFFSET ;-=-=-=-=-=-=-=-=BX: DESTINATION-=-=-=-=-=-=-=-=
                MOV    DH,    AMT_OF_SECTS ;-=-=-=-=-=-=-=-=DH: SECTOR NUMS-=-=-=-=-=-=-=-=
                MOV    DL,    [BOOT_DRIVE] ;-=-=-=-=-=-=-=-=DL:       DRIVE-=-=-=-=-=-=-=-=
-               JMP             INIT_DRIVE ;-=-=-=-=-=TO START INITIALIZING DRIVE-=-=-=-=-=
-;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 ;=-=-=-=-=-=-=-=-=-=-=-=SETTING UP AND CHECKING THE DRIVE VARIABLES=-=-=-=-=-=-=-=-=-=-=-=
-INIT_DRIVE:    PUSH                    DX
+               PUSH                    DX
                MOV    AH,             02H
                MOV    AL,               1
                MOV    CL,             02H
@@ -124,11 +120,8 @@ INIT_DRIVE:    PUSH                    DX
                CMP    AL,              DH
                MOV    SI,        SECT_ERR
                JNE           HANG_ROUTINE
-               JE               A20_CHECK
-;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 ;=-CHECKING AND ENABLING A20 FOR USING OVER 1MB, EVEN BYTES AND PROTECTED MODE (32 BITS)-=
-A20_CHECK:     IN     AL,             92H
+               IN     AL,             92H
                TEST   AL,               2
                JNZ          BITS32_SWITCH
                OR     AL,               2
@@ -149,7 +142,7 @@ BITS32_SWITCH: IN     AL,            0EEH ;-=-=-=-=-=-=-=-=ENABLE A20 LINE-=-=-=
                MOV    ES,              AX ;<|
                MOV    FS,              AX ;<|
                MOV    GS,              AX ;<|
-               JMP  8:INIT_32BITS ;=-=-=-=-=-=-=MOVING TO 32BIT CODE-=-=-=-=-=-=-=
+               JMP          8:INIT_32BITS ;=-=-=-=-=-=-=MOVING TO 32BIT CODE-=-=-=-=-=-=-=
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 
@@ -187,7 +180,8 @@ OUTPUT32:      MOV   EDI,       [0xB8000]
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-START 32BITS (PROTECTED MODE)-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 INIT_32BITS:   MOV   ESP,      ESP_OFFSET
                LGDT         [GDT64.TABLE]
-               PUSHFD ; CPUID CHECK
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=CPUID CHECK=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+               PUSHFD
                POP                    EAX
                MOV   ECX,             EAX
                XOR   EAX,           1<<21
@@ -200,12 +194,14 @@ INIT_32BITS:   MOV   ESP,      ESP_OFFSET
                XOR   EAX,             ECX
                MOV    SI,        NO_CPUID
                JZ          HANG_ROUTINE32
-               MOV   EAX,       80000000H ; LONG MODE AVAILABILITY CHECK
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-LONG MODE AVAILABILITY CHECK-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+               MOV   EAX,       80000000H
                CPUID
                CMP   EAX,       80000001H
                MOV    SI,        NO_64BIT
                JB          HANG_ROUTINE32
-               MOV   EAX,       80000001H ; DETECT LONG MODE
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-DETECT LONG MODE-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+               MOV   EAX,       80000001H
                CPUID
                TEST  EDX,           1<<29
                MOV    SI,        NO_CPUID
