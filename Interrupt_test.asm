@@ -3,6 +3,11 @@ BITS 64
 START_64BITS:LIDT[IDT64_TABLE]
              JMP $
 
+;MOV IDT64_ISR, SOMETHING
+;MOV IDT64_FLAGS, SOMETHING
+
+;NEXT: TRY TO GET THE DIVIDE BY ZERO INTERRUPT WORKING
+
 IDT64_START: DW             IDT64_ISR & 0FFFFH
              DW                     GDT64_CODE
              DB                            00H
