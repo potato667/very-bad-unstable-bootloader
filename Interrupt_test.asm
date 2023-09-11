@@ -9,7 +9,7 @@ START_64BITS:LIDT[IDT64_TABLE]
 ;NEXT: TRY TO GET THE DIVIDE BY ZERO INTERRUPT WORKING
 
 IDT64_START: DW             IDT64_ISR & 0FFFFH
-             DW                     GDT64_CODE
+             DW                     GDT64_CODE ;THIS SHOULD BE FROM THE 64 BIT GDT
              DB                            00H
              DB                    IDT64_FLAGS
              DW (IDT64_ISR >> 16) &     0FFFFH
